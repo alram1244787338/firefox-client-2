@@ -61,7 +61,7 @@ This latest version of the library will stay compatible with [Firefox Nightly](h
 
 ## API
 
-A `FirefoxClient` is the entry point to the API. After connecting, get a `Tab` object with `listTabs()` or `selectedTab()`. Once you have a `Tab`, you can call methods and listen to events from the tab's modules, `Console` or `Network`. There are also experimental `DOM` and `StyleSheets` tab modules, and an upcoming `Debugger` module.
+A `FirefoxClient` is the entry point to the API. After connecting, get a `Tab` object with `listTabs()` or `selectedTab()`. Once you have a `Tab`, you can call methods and listen to events from the tab's modules, `Console` or `Network`. There are also experimental `DOM` and `StyleSheets` tab modules, and a `Debugger` module.
 
 #### Methods
 Almost all API calls take a callback that will get called with an error as the first argument (or `null` if there is no error), and a return value as the second:
@@ -140,6 +140,56 @@ Events: `"disabled-changed"`, `"ruleCount-changed"`
 
 #### Tab.Memory
 Methods: `measure()`
+
+#### Tab.Debugger
+Methods: `attach()`, `detach()`, `pause()`, `resume()`, `stepOver()`, `stepIn()`, `stepOut()`, `getSources()`, `getFrames()`, `setBreakpoint()`
+
+Events: `"pause"`, `"resume"`, `"new-source"`, `"new-global"`
+
+```javascript
+var dbg = tab.Debugger;
+
+// get notified every time execution stops (breakpoint, step, or pause())
+dbg.on("pause", function(info) {
+  var frame = info.frame;
+  console.log("paused (" + info.why.type + ") in",
+              frame.functionName || "(top level)",
+              "at", frame.url + ":" + frame.line + ":" + frame.column);
+
+  // step over one line, then keep going
+  dbg.stepOver(function(err) { if (err) throw err; });
+});
+
+// attaching leaves the thread paused, so resume() to let the page run
+dbg.attach(function(err, paused) {
+  if (err) throw err;
+
+  dbg.getSources(function(err, sources) {
+    if (err) throw err;
+    // set a breakpoint on the first line of the first script
+    sources[0].setBreakpoint({ line: 1 }, function(err, bp) {
+      dbg.resume();
+    });
+  });
+});
+```
+
+The `"pause"` and `"resume"` events fire for *unsolicited* stops (e.g. a
+breakpoint is hit, or a step completes). Stops you ask for directly —
+`attach()`, `pause()` — report their location through their own callback
+instead, so you don't get the same stop twice.
+
+#### Frame
+A single entry in the call stack at a pause.
+
+Properties: `type`, `url`, `line`, `column`, `functionName`, `depth`, `args`, `receiver`, `where`
+
+#### Source
+A script known to the debugger.
+
+Properties: `url`, `introductionType`, `sourceMapURL`
+
+Methods: `getText()`, `setBreakpoint()`
 
 #### Webapps
 Methods: `listRunningApps()`, `getInstalledApps()`, `watchApps()`, `unwatchApps()`, `launch()`, `close()`, `getApp()`, `installHosted()`, `installPackaged()`, `installPackagedWithADB()`, `uninstall()`
